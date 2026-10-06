@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lixo no Lugar Certo!</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#d9f1ff;--ink:#12324a;--card:#fff;--ok:#157a3b;--no:#c4352e;--line:rgba(18,50,74,.25);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e2433;--ink:#e8f4ff;--card:#17374c;--ok:#5fd68a;--no:#ff8a80;--line:rgba(232,244,255,.3)}}
+:root[data-theme="dark"]{--bg:#0e2433;--ink:#e8f4ff;--card:#17374c;--ok:#5fd68a;--no:#ff8a80;--line:rgba(232,244,255,.3)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Fredoka,system-ui,sans-serif;display:flex;justify-content:center}
+main{width:100%;max-width:760px;padding:16px;text-align:center}
+h1{font-size:2rem;margin:8px 0 4px}
+p{margin:6px 0}
+[hidden]{display:none!important}
+button{font:inherit;cursor:pointer;color:var(--ink)}
+button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.lvbtn{display:flex;flex-direction:column;gap:2px;width:100%;margin:10px 0;padding:14px 18px;border:2px solid var(--line);border-radius:16px;background:var(--card);text-align:left;font-size:1.1rem}
+.lvbtn span{font-size:.95rem;opacity:.8}
+.lvbtn:disabled{opacity:.5;cursor:not-allowed}
+.btn{padding:12px 22px;margin:6px;border:0;border-radius:999px;background:var(--ink);color:var(--bg);font-weight:600;font-size:1rem}
+.btn.alt{background:var(--card);color:var(--ink);border:2px solid var(--line)}
+.hud{display:flex;justify-content:space-between;gap:8px;font-weight:600;background:var(--card);border-radius:14px;padding:10px 14px}
+#stage{min-height:230px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+#item{touch-action:none;user-select:none;cursor:grab;width:150px;padding:14px 10px;background:var(--card);border:3px dashed var(--line);border-radius:22px;font-size:4rem;line-height:1;transition:transform .3s,opacity .5s;position:relative;z-index:5}
+#item small{display:block;font-size:1rem;font-weight:600;margin-top:8px}
+#item.drag{cursor:grabbing;box-shadow:0 10px 24px rgba(0,0,0,.25)}
+#msg{min-height:3.2em;font-weight:600;padding:0 8px}
+#msg.ok{color:var(--ok)}#msg.no{color:var(--no)}
+#bins{display:flex;gap:10px;justify-content:center;padding-top:18px}
+.bin{position:relative;flex:1 1 90px;max-width:180px;min-height:120px;display:flex;align-items:center;justify-content:center;padding:12px 6px;background:var(--c);color:var(--t);border:2px solid var(--line);border-radius:6px 6px 18px 18px;font-weight:700;font-size:.9rem;line-height:1.15;transition:transform .15s}
+.bin i{position:absolute;left:-6px;right:-6px;top:-12px;height:14px;background:var(--c);border:2px solid var(--line);border-radius:6px}
+.bin.over{transform:scale(1.08);box-shadow:0 0 0 4px var(--ink)}
+.bin.shake{animation:sh .35s}
+@keyframes sh{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+@media (prefers-reduced-motion:reduce){.bin.shake{animation:none}#item{transition:none}}
+.big{font-size:3.5rem}
+</style>
+</head>
+<body>
+<main>
+<section id="menu">
+  <h1>Lixo no Lugar Certo! ♻️</h1>
+  <p>Arraste cada objeto até a lixeira correta. Cada acerto vale 10 pontos, e 3 acertos seguidos rendem bônus!</p>
+  <div id="lv"></div>
+  <p id="tot" style="font-weight:600"></p>
+</section>
+
+<section id="play" hidden>
+  <div class="hud"><span id="hl"></span><span id="hp"></span><span id="hs"></span></div>
+  <div id="stage">
+    <div id="item" role="img"></div>
+    <div id="msg" aria-live="polite"></div>
+  </div>
+  <div id="bins"></div>
+  <button class="btn alt" id="back" style="margin-top:18px">Voltar ao menu</button>
+</section>
+
+<section id="end" hidden>
+  <div class="big" id="eicon"></div>
+  <h1 id="etitle"></h1>
+  <p id="etext"></p>
+  <div id="ebtns"></div>
+</section>
+</main>
+
+<script>
+const B={
+papel:['Papel','#2f6fd6','#fff'],
+plastico:['Plástico','#d6453d','#fff'],
+metal:['Metal','#f2b705','#12324a'],
+vidro:['Vidro','#1f9d4f','#fff'],
+organico:['Orgânico','#8a5a35','#fff'],
+eletro:['Pilhas e eletrônicos (ponto de coleta)','#f07f1a','#12324a'],
+remedio:['Medicamentos (levar à farmácia)','#f4f4f4','#12324a'],
+reciclavel:['Reciclável comum (coleta seletiva)','#6b7a86','#fff']};
+const L=[
+{n:'Fácil',d:'Papel, plástico e metal',bins:['papel','plastico','metal'],items:[
+['📄','Folha de papel','papel','Papel limpo e seco pode ser reciclado.'],
+['🧴','Garrafa PET','plastico','Esvazie e amasse antes de descartar.'],
+['🥫','Lata de atum','metal','Latas de aço são recicláveis várias vezes.'],
+['📰','Jornal','papel','Jornais viram papel novo.'],
+['🥤','Copo plástico','plastico','Plástico demora centenas de anos para se decompor.'],
+['🥫','Lata de refrigerante','metal','Reciclar alumínio gasta muito menos energia.']]},
+{n:'Intermediário',d:'Embalagens, vidro e restos de comida',bins:['papel','plastico','metal','vidro','organico'],items:[
+['🍌','Casca de banana','organico','Restos de comida podem virar adubo na compostagem.'],
+['🫙','Pote de vidro','vidro','O vidro pode ser reciclado infinitas vezes.'],
+['🧴','Frasco de shampoo','plastico','Embalagens plásticas vão na lixeira de plástico.'],
+['🥚','Casca de ovo','organico','Casca de ovo é ótima para a compostagem.'],
+['📦','Caixa de papelão','papel','Desmonte a caixa para ocupar menos espaço.'],
+['🥫','Lata de milho','metal','Lave rapidamente a lata antes de descartar.'],
+['🍾','Garrafa de vidro','vidro','Vidro quebrado deve ser embalado com cuidado.']]},
+{n:'Desafio',d:'Pilhas, eletrônicos e remédios',bins:['eletro','remedio','reciclavel'],items:[
+['🔋','Pilha usada','eletro','Pilhas contaminam solo e água. Leve a um ponto de coleta.'],
+['📱','Celular quebrado','eletro','Eletrônicos têm metais tóxicos. Use pontos de coleta.'],
+['💊','Remédio vencido','remedio','Nunca jogue no lixo ou na pia. Devolva na farmácia.'],
+['🔌','Carregador velho','eletro','Cabos e carregadores também são lixo eletrônico.'],
+['🧴','Garrafa PET','reciclavel','Essa pode ir para a coleta seletiva comum.'],
+['📰','Jornal','reciclavel','Papel limpo vai para a coleta seletiva comum.']]}];
+
+const $=s=>document.querySelector(s);
+const S={sc:[0,0,0],done:[false,false,false],lv:0,q:[],i:0,streak:0,busy:false};
+const show=id=>['menu','play','end'].forEach(x=>$('#'+x).hidden=x!==id);
+const total=()=>S.sc.reduce((a,b)=>a+b,0);
+const rank=t=>t>=200?['🏆','Guardião do Planeta']:t>=140?['🌟','Recicla Expert']:t>=80?['🌱','Aprendiz Sustentável']:['💪','Vamos praticar mais'];
+
+function menu(){
+  const box=$('#lv');box.innerHTML='';
+  L.forEach((l,i)=>{
+    const lock=i>0&&!S.done[i-1];
+    const b=document.createElement('button');
+    b.className='lvbtn';b.disabled=lock;
+    b.innerHTML='<b>Nível '+(i+1)+' – '+l.n+'</b><span>'+(lock?'🔒 Conclua o nível anterior':S.done[i]?'⭐ Concluído · '+S.sc[i]+' pontos':l.d)+'</span>';
+    b.onclick=()=>start(i);box.append(b);
+  });
+  $('#tot').textContent=total()?'Pontuação total: '+total()+' pontos':'';
+  show('menu');
+}
+
+function start(i){
+  S.lv=i;S.sc[i]=0;S.streak=0;S.i=0;S.busy=false;
+  S.q=L[i].items.slice().sort(()=>Math.random()-.5);
+  $('#bins').innerHTML=L[i].bins.map(k=>'<div class="bin" data-k="'+k+'" style="--c:'+B[k][1]+';--t:'+B[k][2]+'"><i></i><span>'+B[k][0]+'</span></div>').join('');
+  show('play');next();
+}
+
+function hud(){
+  $('#hl').textContent='Nível '+(S.lv+1);
+  $('#hp').textContent='⭐ '+S.sc[S.lv]+' pts';
+  $('#hs').textContent='🔥 '+S.streak+' · '+Math.min(S.i+1,S.q.length)+'/'+S.q.length;
+}
+
+function next(){
+  if(S.i>=S.q.length)return finish();
+  const c=S.q[S.i],it=$('#item');
+  it.innerHTML=c[0]+'<small>'+c[1]+'</small>';
+  it.setAttribute('aria-label',c[1]);
+  it.style.transition='none';it.style.transform='';it.style.opacity=1;
+  setMsg('Arraste o objeto até a lixeira certa.','');
+  S.busy=false;hud();
+}
+
+function setMsg(t,c){const m=$('#msg');m.textContent=t;m.className=c}
+const bins=()=>[...document.querySelectorAll('.bin')];
+function binAt(x,y){return bins().find(b=>{const r=b.getBoundingClientRect();return x>=r.left&&x<=r.right&&y>=r.top-14&&y<=r.bottom})}
+
+const it=$('#item');let d=null;
+it.onpointerdown=e=>{if(S.busy)return;d={x:e.clientX,y:e.clientY};it.setPointerCapture(e.pointerId);it.classList.add('drag');it.style.transition='none'};
+it.onpointermove=e=>{
+  if(!d)return;
+  it.style.transform='translate('+(e.clientX-d.x)+'px,'+(e.clientY-d.y)+'px) scale(1.1)';
+  const o=binAt(e.clientX,e.clientY);bins().forEach(b=>b.classList.toggle('over',b===o));
+};
+it.onpointerup=e=>{
+  if(!d)return;d=null;it.classList.remove('drag');
+  bins().forEach(b=>b.classList.remove('over'));
+  it.style.transition='transform .3s,opacity .5s';
+  const b=binAt(e.clientX,e.clientY);
+  if(!b){it.style.transform='';return}
+  drop(b);
+};
+it.onpointercancel=()=>{d=null;it.classList.remove('drag');it.style.transform=''};
+
+function drop(b){
+  const c=S.q[S.i];
+  if(b.dataset.k===c[2]){
+    S.busy=true;S.streak++;
+    let pts=10,bonus=S.streak>=3;
+    if(bonus)pts+=5;
+    S.sc[S.lv]+=pts;
+    setMsg('✅ Muito bem! +'+pts+' pontos'+(bonus?' (bônus de sequência 🔥)':'')+'. '+c[3],'ok');
+    it.style.opacity=0;it.style.transform+=' scale(.3)';
+    S.i++;hud();
+    setTimeout(next,2200);
+  }else{
+    S.streak=0;hud();
+    setMsg('❌ Esse descarte não está correto. Tente de novo!','no');
+    it.style.transform='';
+    b.classList.add('shake');setTimeout(()=>b.classList.remove('shake'),400);
+  }
+}
+
+function finish(){
+  S.done[S.lv]=true;
+  const all=S.done.every(Boolean),n=S.lv;
+  const btns=$('#ebtns');btns.innerHTML='';
+  const add=(t,f,alt)=>{const b=document.createElement('button');b.className='btn'+(alt?' alt':'');b.textContent=t;b.onclick=f;btns.append(b)};
+  $('#eicon').textContent='⭐';
+  $('#etitle').textContent='Nível '+(n+1)+' concluído!';
+  let t='Você fez '+S.sc[n]+' pontos neste nível.';
+  if(n<2)t+=' Nível '+(n+2)+' desbloqueado!';
+  if(all){const r=rank(total());$('#eicon').textContent=r[0];t+=' Pontuação total: '+total()+'. Classificação: '+r[1]+'!'}
+  $('#etext').textContent=t;
+  if(n<2)add('Próximo nível',()=>start(n+1));
+  add('Jogar de novo',()=>start(n),true);
+  add('Menu',menu,true);
+  show('end');
+}
+
+$('#back').onclick=menu;
+menu();
+</script>
+</body>
+</html>
